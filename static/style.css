@@ -1,0 +1,138 @@
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Form select styling */
+select {
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Table styling */
+.overflow-hidden {
+    position: relative;
+}
+
+.overflow-x-auto {
+    margin-bottom: -1px; /* Hide bottom border of header table */
+}
+
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+
+thead {
+    background: #f9fafb;
+}
+
+th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: inherit;
+}
+
+tbody tr:hover {
+    background-color: #f3f4f6;
+}
+
+/* Darker region-based colors with hover effects */
+.bg-red-50 {
+    background-color: #fee2e2;
+}
+.bg-red-50:hover {
+    background-color: #fecaca;
+}
+
+.bg-orange-50 {
+    background-color: #ffedd5;
+}
+.bg-orange-50:hover {
+    background-color: #fdba74;
+}
+
+.bg-green-50 {
+    background-color: #dcfce7;
+}
+.bg-green-50:hover {
+    background-color: #bbf7d0;
+}
+
+.bg-blue-50 {
+    background-color: #dbeafe;
+}
+.bg-blue-50:hover {
+    background-color: #bfdbfe;
+}
+
+/* Ensure consistent widths between header and body */
+th, td {
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+/* Add border between rows */
+tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+tbody tr:last-child {
+    border-bottom: none;
+}
+
+/* Fix header alignment with scrollbar */
+.overflow-x-auto table {
+    margin-bottom: 0;
+}
+
+/* Ensure smooth scrolling */
+.overflow-y-auto {
+    scrollbar-gutter: stable;
+    scroll-behavior: smooth;
+}
+
+/* Fix header background and shadow */
+thead th {
+    background: #f9fafb;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure table cells maintain their width */
+th[style], td[style] {
+    width: var(--width) !important;
+    min-width: var(--width) !important;
+    max-width: var(--width) !important;
+} 
