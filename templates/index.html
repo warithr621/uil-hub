@@ -6,6 +6,35 @@
     <title>UIL Results Viewer</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Region-based colors */
+        .region-1-row {
+            background-color: rgba(255, 0, 0, 0.1);  /* Light red */
+        }
+        .region-2-row {
+            background-color: rgba(255, 140, 0, 0.1);  /* Light orange */
+        }
+        .region-3-row {
+            background-color: rgba(0, 128, 0, 0.1);  /* Light green */
+        }
+        .region-4-row {
+            background-color: rgba(0, 0, 255, 0.1);  /* Light blue */
+        }
+        
+        /* Hover effects */
+        .region-1-row:hover {
+            background-color: rgba(255, 0, 0, 0.2);
+        }
+        .region-2-row:hover {
+            background-color: rgba(255, 140, 0, 0.2);
+        }
+        .region-3-row:hover {
+            background-color: rgba(0, 128, 0, 0.2);
+        }
+        .region-4-row:hover {
+            background-color: rgba(0, 0, 255, 0.2);
+        }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8">
@@ -81,6 +110,24 @@
         <!-- Results Display -->
         <div id="results" class="hidden">
             <h2 id="competitionTitle" class="text-2xl font-bold mb-4 text-gray-800"></h2>
+            
+            <!-- Warning Message for Empty Districts -->
+            <div id="emptyDistrictsWarning" class="hidden mb-4">
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                No results found in the following districts: <span id="emptyDistrictsList"></span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- Science Sorting Controls -->
             <div id="scienceSorting" class="hidden mb-4">
@@ -191,12 +238,17 @@
                 });
             });
             
-            function getDistrictColor(district) {
-                const distNum = parseInt(district.match(/\d+/)[0]);
-                if (distNum <= 8) return 'bg-red-50';
-                if (distNum <= 16) return 'bg-orange-50';
-                if (distNum <= 24) return 'bg-green-50';
-                if (distNum <= 32) return 'bg-blue-50';
+            function getRegionClass(district) {
+                if (district.startsWith('Region')) {
+                    const regionNum = district.split(' ')[1];
+                    return `region-${regionNum}-row`;
+                } else if (district.startsWith('District')) {
+                    const distNum = parseInt(district.split(' ')[1]);
+                    if (distNum <= 8) return 'region-1-row';
+                    else if (distNum <= 16) return 'region-2-row';
+                    else if (distNum <= 24) return 'region-3-row';
+                    else return 'region-4-row';
+                }
                 return '';
             }
             
@@ -214,7 +266,7 @@
             function createIndividualRow(res) {
                 const row = document.createElement('tr');
                 const hasScience = 'bio' in res;
-                const colorClass = getDistrictColor(res.district);
+                const colorClass = getRegionClass(res.district);
                 row.className = colorClass;
                 
                 row.innerHTML = `
@@ -246,7 +298,7 @@
             function createTeamRow(res) {
                 const row = document.createElement('tr');
                 const hasProgScore = res.prog_score !== null;
-                const colorClass = getDistrictColor(res.district);
+                const colorClass = getRegionClass(res.district);
                 row.className = colorClass;
                 
                 row.innerHTML = `
@@ -293,6 +345,16 @@
                     
                     // Update competition title
                     document.getElementById('competitionTitle').textContent = result.competition;
+                    
+                    // Handle empty districts warning
+                    const emptyDistrictsWarning = document.getElementById('emptyDistrictsWarning');
+                    const emptyDistrictsList = document.getElementById('emptyDistrictsList');
+                    if (result.empty_districts && result.empty_districts.length > 0) {
+                        emptyDistrictsList.textContent = result.empty_districts.join(', ');
+                        emptyDistrictsWarning.classList.remove('hidden');
+                    } else {
+                        emptyDistrictsWarning.classList.add('hidden');
+                    }
                     
                     // Show/hide science sorting controls
                     const hasScience = result.individual[0] && 'bio' in result.individual[0];
