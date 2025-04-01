@@ -1,7 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 import requests
 import re
 from time import sleep
+import csv
+import io
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -93,8 +96,13 @@ def district_parser(reg_number):
         print(f"Finished District {i}")
         sleep(0.25)
 
+    # Sort all results
     indiv_results.sort(reverse=True)
     team_results.sort(reverse=True)
+    
+    # Store all results before filtering
+    all_indiv = indiv_results[:]
+    all_team = team_results[:]
     
     # Filter team results to only advancing teams
     tmp, found = [], False
@@ -121,7 +129,7 @@ def district_parser(reg_number):
             tmp.append(x)
     indiv_results = tmp
     
-    return indiv_results, team_results, empty_districts  # Include empty_districts in return value
+    return indiv_results, team_results, all_indiv, all_team, empty_districts
 
 def regional_parser():
     indiv_results = []
@@ -197,8 +205,13 @@ def regional_parser():
         print(f"Finished Region {i}")
         sleep(0.25)
 
+    # Sort all results
     indiv_results.sort(reverse=True)
     team_results.sort(reverse=True)
+    
+    # Store all results before filtering
+    all_indiv = indiv_results[:]
+    all_team = team_results[:]
     
     # Filter team results to only advancing teams
     tmp, found = [], False
@@ -225,7 +238,7 @@ def regional_parser():
             tmp.append(x)
     indiv_results = tmp
 
-    return indiv_results, team_results
+    return indiv_results, team_results, all_indiv, all_team
 
 @app.route('/')
 def index():
@@ -244,35 +257,45 @@ def get_results():
     
     if choice == 1:
         reg_number = int(data['region'])
-        indiv_results, team_results, empty_districts = district_parser(reg_number)
+        indiv_results, team_results, all_indiv, all_team, empty_districts = district_parser(reg_number)
     elif choice == 2:
         indiv_results, team_results = [], []
-        empty_districts = []  # Initialize empty districts list
+        all_indiv, all_team = [], []
+        empty_districts = []
         for r in range(1, 5):
-            I, T, E = district_parser(r)  # Capture empty districts from each region
+            I, T, AI, AT, E = district_parser(r)
             indiv_results += I
             team_results += T
-            empty_districts += E  # Combine empty districts from all regions
+            all_indiv += AI
+            all_team += AT
+            empty_districts += E
         indiv_results.sort(reverse=True)
         team_results.sort(reverse=True)
+        all_indiv.sort(reverse=True)
+        all_team.sort(reverse=True)
     else:  # choice == 3
-        indiv_results, team_results = regional_parser()
-        empty_districts = []  # No district-level warnings for regional results
+        indiv_results, team_results, all_indiv, all_team = regional_parser()
+        empty_districts = []
     
     # Format results for JSON response
     formatted_indiv = []
+    formatted_all_indiv = []
     current_rank = 1
     prev_score = None
     
-    for res in indiv_results:
+    # First, format all individual results
+    for res in all_indiv:
         score = int(res[0])
         # If score is different from previous, update rank
         if score != prev_score:
-            current_rank = len(formatted_indiv) + 1
+            current_rank = len(formatted_all_indiv) + 1
         prev_score = score
         
+        # Check if this result is in the qualifying results
+        is_qualified = res in indiv_results
+        
         if subj == 12:
-            formatted_indiv.append({
+            result_dict = {
                 "rank": current_rank,
                 "score": score,
                 "name": res[2],
@@ -280,43 +303,168 @@ def get_results():
                 "district": res[4],
                 "bio": res[-3],
                 "chem": res[-2],
-                "phys": res[-1]
-            })
+                "phys": res[-1],
+                "qualified": is_qualified
+            }
         else:
-            formatted_indiv.append({
+            result_dict = {
                 "rank": current_rank,
                 "score": score,
                 "name": res[2],
                 "school": res[3],
-                "district": res[4]
-            })
+                "district": res[4],
+                "qualified": is_qualified
+            }
+            if comp == "CS" and len(res) > 5:
+                result_dict["prog_score"] = res[5]
+        
+        formatted_all_indiv.append(result_dict)
+        if is_qualified:
+            formatted_indiv.append(result_dict)
     
+    # Format team results
     formatted_team = []
+    formatted_all_team = []
     current_rank = 1
     prev_score = None
     
-    for res in team_results:
+    # Format all team results
+    for res in all_team:
         score = res[0]
         # If score is different from previous, update rank
         if score != prev_score:
-            current_rank = len(formatted_team) + 1
+            current_rank = len(formatted_all_team) + 1
         prev_score = score
         
-        formatted_team.append({
+        # Check if this team is in the qualifying results
+        is_qualified = res in team_results
+        
+        result_dict = {
             "rank": current_rank,
             "score": score,
             "school": res[2],
             "district": res[3],
             "names": res[4],
-            "prog_score": res[-1] if comp == "CS" else None
-        })
+            "qualified": is_qualified
+        }
+        
+        if comp == "CS":
+            result_dict["prog_score"] = res[-1]
+        
+        formatted_all_team.append(result_dict)
+        if is_qualified:
+            formatted_team.append(result_dict)
     
     return jsonify({
-        "individual": formatted_indiv,
-        "team": formatted_team,
-        "competition": comp,
+        "individual": formatted_indiv,  # Only qualifying individuals (for display)
+        "team": formatted_team,         # Only qualifying teams (for display)
+        "all_individual": formatted_all_indiv,  # All individuals (for CSV)
+        "all_team": formatted_all_team,        # All teams (for CSV)
         "empty_districts": empty_districts
     })
+
+@app.route('/download_csv', methods=['POST'])
+def download_csv():
+    data = request.json
+    results = data['results']
+    competition = data['competition']
+    year = data['year']
+    conf = data['conf']
+    choice = data['choice']
+    type = data['type']
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    if type == 'individual':
+        # Write headers for individual results
+        if competition == "Science":
+            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Biology', 'Chemistry', 'Physics', 'Qualified?'])
+        elif competition == "CS":
+            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Programming Score', 'Qualified?'])
+        else:
+            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Qualified?'])
+        
+        # Write individual results
+        for result in results['all_individual']:
+            qualification_status = "Yes" if result['qualified'] else ""
+            if choice == '3':  # Regional Results
+                qualification_status = "Yes" if result['qualified'] else ""
+            
+            if competition == "Science":
+                writer.writerow([
+                    result['rank'],
+                    result['score'],
+                    result['name'],
+                    result['school'],
+                    result['district'],
+                    result['bio'],
+                    result['chem'],
+                    result['phys'],
+                    qualification_status
+                ])
+            elif competition == "CS":
+                writer.writerow([
+                    result['rank'],
+                    result['score'],
+                    result['name'],
+                    result['school'],
+                    result['district'],
+                    result.get('prog_score', ''),
+                    qualification_status
+                ])
+            else:
+                writer.writerow([
+                    result['rank'],
+                    result['score'],
+                    result['name'],
+                    result['school'],
+                    result['district'],
+                    qualification_status
+                ])
+    else:  # team results
+        # Write headers for team results
+        if competition == "CS":
+            writer.writerow(['Rank', 'Score', 'School', 'District', 'Team Members', 'Programming Score', 'Qualified?'])
+        else:
+            writer.writerow(['Rank', 'Score', 'School', 'District', 'Team Members', 'Qualified?'])
+        
+        # Write team results
+        for result in results['all_team']:
+            qualification_status = "Yes" if result['qualified'] else ""
+            if choice == '3':  # Regional Results
+                qualification_status = "Yes" if result['qualified'] else ""
+            
+            if competition == "CS":
+                writer.writerow([
+                    result['rank'],
+                    result['score'],
+                    result['school'],
+                    result['district'],
+                    ', '.join(result['names']),
+                    result.get('prog_score', ''),
+                    qualification_status
+                ])
+            else:
+                writer.writerow([
+                    result['rank'],
+                    result['score'],
+                    result['school'],
+                    result['district'],
+                    ', '.join(result['names']),
+                    qualification_status
+                ])
+    
+    # Create the response
+    output.seek(0)
+    filename = f"{competition}_{year}_{conf}A_{type}_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return send_file(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=filename
+    )
 
 if __name__ == '__main__':
     app.run(debug=True) 

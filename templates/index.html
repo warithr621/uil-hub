@@ -111,6 +111,18 @@
         <div id="results" class="hidden">
             <h2 id="competitionTitle" class="text-2xl font-bold mb-4 text-gray-800"></h2>
             
+            <!-- Download CSV Buttons -->
+            <div id="downloadSection" class="hidden mb-4">
+                <div class="flex space-x-4">
+                    <button id="downloadIndividualCSV" class="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        Download Individual Results CSV
+                    </button>
+                    <button id="downloadTeamCSV" class="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        Download Team Results CSV
+                    </button>
+                </div>
+            </div>
+            
             <!-- Warning Message for Empty Districts -->
             <div id="emptyDistrictsWarning" class="hidden mb-4">
                 <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
@@ -193,14 +205,28 @@
     </div>
 
     <script>
+        // Define competitions dictionary in JavaScript
+        const competitions = {
+            {% for code, name in competitions.items() %}
+            {{ code }}: "{{ name }}",
+            {% endfor %}
+        }; // not sure why this shows as errors when I open it... something to check out later
+        
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('resultsForm');
             const regionInput = document.getElementById('regionInput');
             const loading = document.getElementById('loading');
             const results = document.getElementById('results');
+            const downloadSection = document.getElementById('downloadSection');
+            const downloadIndividualCSV = document.getElementById('downloadIndividualCSV');
+            const downloadTeamCSV = document.getElementById('downloadTeamCSV');
             const choiceSelect = form.querySelector('select[name="choice"]');
             const scienceSorting = document.getElementById('scienceSorting');
             let currentResults = null;
+            let currentYear = null;
+            let currentConf = null;
+            let currentComp = null;
+            let currentChoice = null;
             
             // Show/hide region input based on choice
             function updateRegionVisibility() {
@@ -316,15 +342,20 @@
             
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                
-                // Show loading spinner
                 loading.classList.remove('hidden');
                 results.classList.add('hidden');
+                downloadSection.classList.add('hidden');
+                
+                const formData = new FormData(form);
+                const data = {
+                    year: formData.get('year'),
+                    conf: formData.get('conf'),
+                    comp: formData.get('comp'),
+                    choice: formData.get('choice'),
+                    region: formData.get('region')
+                };
                 
                 try {
-                    const formData = new FormData(form);
-                    const data = Object.fromEntries(formData.entries());
-                    
                     const response = await fetch('/results', {
                         method: 'POST',
                         headers: {
@@ -334,53 +365,106 @@
                     });
                     
                     const result = await response.json();
-                    
-                    if (result.error) {
-                        alert(result.error);
-                        return;
-                    }
-                    
-                    // Store results for sorting
                     currentResults = result;
+                    currentYear = data.year;
+                    currentConf = data.conf;
+                    currentComp = formData.get('comp');
+                    currentChoice = data.choice;
                     
-                    // Update competition title
-                    document.getElementById('competitionTitle').textContent = result.competition;
-                    
-                    // Handle empty districts warning
-                    const emptyDistrictsWarning = document.getElementById('emptyDistrictsWarning');
-                    const emptyDistrictsList = document.getElementById('emptyDistrictsList');
-                    if (result.empty_districts && result.empty_districts.length > 0) {
-                        emptyDistrictsList.textContent = result.empty_districts.join(', ');
-                        emptyDistrictsWarning.classList.remove('hidden');
-                    } else {
-                        emptyDistrictsWarning.classList.add('hidden');
-                    }
-                    
-                    // Show/hide science sorting controls
-                    const hasScience = result.individual[0] && 'bio' in result.individual[0];
-                    scienceSorting.classList.toggle('hidden', !hasScience);
-                    
-                    // Show/hide science headers
-                    const bioHeader = document.getElementById('bioHeader');
-                    const chemHeader = document.getElementById('chemHeader');
-                    const physHeader = document.getElementById('physHeader');
-                    
-                    bioHeader.classList.toggle('hidden', !hasScience);
-                    chemHeader.classList.toggle('hidden', !hasScience);
-                    physHeader.classList.toggle('hidden', !hasScience);
-                    
-                    // Update results display
+                    // Update UI with results
+                    document.getElementById('competitionTitle').textContent = `${competitions[data.comp]} Results`;
                     updateIndividualResults(result.individual);
                     updateTeamResults(result.team);
                     
-                    // Show results
-                    loading.classList.add('hidden');
-                    results.classList.remove('hidden');
+                    // Show/hide science sorting based on competition
+                    scienceSorting.classList.toggle('hidden', data.comp !== '12');
                     
+                    // Show results and download buttons
+                    results.classList.remove('hidden');
+                    downloadSection.classList.remove('hidden');
                 } catch (error) {
                     console.error('Error:', error);
                     alert('An error occurred while fetching results.');
+                } finally {
                     loading.classList.add('hidden');
+                }
+            });
+            
+            // Add download CSV functionality for individual results
+            downloadIndividualCSV.addEventListener('click', async function() {
+                if (!currentResults) return;
+                
+                try {
+                    const response = await fetch('/download_csv', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            results: currentResults,
+                            competition: competitions[currentComp],
+                            year: currentYear,
+                            conf: currentConf,
+                            choice: currentChoice,
+                            type: 'individual'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = response.headers.get('content-disposition').split('filename=')[1];
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    } else {
+                        throw new Error('Download failed');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while downloading the CSV.');
+                }
+            });
+            
+            // Add download CSV functionality for team results
+            downloadTeamCSV.addEventListener('click', async function() {
+                if (!currentResults) return;
+                
+                try {
+                    const response = await fetch('/download_csv', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            results: currentResults,
+                            competition: competitions[currentComp],
+                            year: currentYear,
+                            conf: currentConf,
+                            choice: currentChoice,
+                            type: 'team'
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = response.headers.get('content-disposition').split('filename=')[1];
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    } else {
+                        throw new Error('Download failed');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while downloading the CSV.');
                 }
             });
         });

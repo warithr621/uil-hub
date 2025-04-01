@@ -136,3 +136,11 @@ th[style], td[style] {
     min-width: var(--width) !important;
     max-width: var(--width) !important;
 } 
+
+#competitionTitle {
+    text-align: center;
+}
+#downloadSection {
+    display: flex;
+    justify-content: center;
+}
