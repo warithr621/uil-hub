@@ -283,7 +283,7 @@ def get_results():
     current_rank = 1
     prev_score = None
     
-    # First, format all individual results
+    # First, format all individual results (for CSV)
     for res in all_indiv:
         score = int(res[0])
         # If score is different from previous, update rank
@@ -320,7 +320,19 @@ def get_results():
         
         formatted_all_indiv.append(result_dict)
         if is_qualified:
-            formatted_indiv.append(result_dict)
+            # Create a copy for the display list, we'll update ranks later
+            display_dict = result_dict.copy()
+            formatted_indiv.append(display_dict)
+    
+    # Update ranks for display list to be continuous
+    current_rank = 1
+    prev_score = None
+    for result in formatted_indiv:
+        score = result['score']
+        if score != prev_score:
+            current_rank = len([r for r in formatted_indiv if r['score'] > score]) + 1
+        result['rank'] = current_rank
+        prev_score = score
     
     # Format team results
     formatted_team = []
@@ -328,7 +340,7 @@ def get_results():
     current_rank = 1
     prev_score = None
     
-    # Format all team results
+    # Format all team results (for CSV)
     for res in all_team:
         score = res[0]
         # If score is different from previous, update rank
@@ -353,7 +365,19 @@ def get_results():
         
         formatted_all_team.append(result_dict)
         if is_qualified:
-            formatted_team.append(result_dict)
+            # Create a copy for the display list, we'll update ranks later
+            display_dict = result_dict.copy()
+            formatted_team.append(display_dict)
+    
+    # Update ranks for display team list to be continuous
+    current_rank = 1
+    prev_score = None
+    for result in formatted_team:
+        score = result['score']
+        if score != prev_score:
+            current_rank = len([r for r in formatted_team if r['score'] > score]) + 1
+        result['rank'] = current_rank
+        prev_score = score
     
     return jsonify({
         "individual": formatted_indiv,  # Only qualifying individuals (for display)
