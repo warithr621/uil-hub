@@ -71,9 +71,9 @@ def district_parser(reg_number):
                     continue
                     
                 try:
-                    place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1)
-                    school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1)
-                    school = school[school.rindex('>')+1:]
+                    place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1).strip()
+                    school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1).strip()
+                    school = school[school.rindex('>')+1:].strip()
                     regex = r"<td class='ddprint centered'>(\d+)<\/td>"
                     score, prog_score = 0, 0
                     
@@ -84,7 +84,9 @@ def district_parser(reg_number):
                         score = re.search(regex, x).group(1)
                     names = [(N if '<' not in N else N[:N.index('<')]).strip() for N in x.split("<br>")[1:]]
                     if names:  # Only add if we found team members
-                        team_results.append((int(score), place, school, f"District {i}", names, prog_score))
+                        team_scores = sorted([tup for tup in indiv_results if tup[2] in names], key=lambda tup: tup[0], reverse=True)
+                        team_results.append((int(score), prog_score if comp == "CS" else -999, -999 if len(team_scores) <= 3 else team_scores[3][0], place, school, f"District {i}", names))
+                        # note the changed order: team score, "prog score", 4th person score, ranking, school, district, people on team
                 except Exception as e:
                     print(f"Error processing team row in district {i}: {str(e)}")
                     continue
@@ -105,13 +107,16 @@ def district_parser(reg_number):
     all_team = team_results[:]
     
     # Filter team results to only advancing teams
-    tmp, found = [], False
+    tmp, second = [], None
     for x in team_results:
-        if x[1] == "1st":
+        if x[3] == "1st":
             tmp.append(x)
-        elif x[1] == "2nd" and not found:
-            tmp.append(x)
-            found = True 
+        elif x[3] == "2nd":
+            if second == None:
+                tmp.append(x)
+                second = x
+            elif second[0:3] == x[0:3]:
+                tmp.append(x) # tie for wildcard, because that's like actually possible
     team_results = tmp
     
     # Filter individual results to only advancing individuals
@@ -119,7 +124,7 @@ def district_parser(reg_number):
     for x in indiv_results:
         found = False
         for team in team_results:
-            found |= (x[2] in team[4])
+            found |= (x[2] in team[-1])
         if subj == 12:  # Science
             b = (mxbio[int(x[4][9:])] == x[-3])
             c = (mxchem[int(x[4][9:])] == x[-2])
@@ -180,9 +185,9 @@ def regional_parser():
                     continue
                     
                 try:
-                    place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1)
-                    school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1)
-                    school = school[school.rindex('>')+1:]
+                    place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1).strip()
+                    school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1).strip()
+                    school = school[school.rindex('>')+1:].strip()
                     regex = r"<td class='ddprint centered'>(\d+)<\/td>"
                     score, prog_score = 0, 0
                     
@@ -193,7 +198,8 @@ def regional_parser():
                         score = re.search(regex, x).group(1)
                     names = [(N if '<' not in N else N[:N.index('<')]).strip() for N in x.split("<br>")[1:]]
                     if names:  # Only add if we found team members
-                        team_results.append((int(score), place, school, f"Region {i}", names, prog_score))
+                        team_scores = sorted([tup for tup in indiv_results if tup[2] in names], key=lambda tup: tup[0], reverse=True)
+                        team_results.append((int(score), prog_score if comp == "CS" else -999, -999 if len(team_scores) <= 3 else team_scores[3][0], place, school, f"Region {i}", names))
                 except Exception as e:
                     print(f"Error processing team row in region {i}: {str(e)}")
                     continue
@@ -214,13 +220,16 @@ def regional_parser():
     all_team = team_results[:]
     
     # Filter team results to only advancing teams
-    tmp, found = [], False
+    tmp, second = [], None
     for x in team_results:
-        if x[1] == "1st":
+        if x[3] == "1st":
             tmp.append(x)
-        elif x[1] == "2nd" and not found:
-            tmp.append(x)
-            found = True 
+        elif x[3] == "2nd":
+            if second == None:
+                tmp.append(x)
+                second = x
+            elif second[0:3] == x[0:3]:
+                tmp.append(x) # tie for wildcard, because that's like actually possible
     team_results = tmp
     
     # Filter individual results to only advancing individuals
@@ -228,7 +237,7 @@ def regional_parser():
     for x in indiv_results:
         found = False
         for team in team_results:
-            found |= (x[2] in team[4])
+            found |= (x[2] in team[-1])
         if subj == 12:  # Science
             b = (mxbio[int(x[4][7:])] == x[-3])
             c = (mxchem[int(x[4][7:])] == x[-2])
@@ -281,23 +290,22 @@ def get_results():
     formatted_indiv = []
     formatted_all_indiv = []
     current_rank = 1
-    prev_score = None
+    prev_res = None
     
     # First, format all individual results (for CSV)
     for res in all_indiv:
-        score = int(res[0])
         # If score is different from previous, update rank
-        if score != prev_score:
+        if prev_res is not None or (prev_res is not None and res[0] != prev_res[0]):
             current_rank = len(formatted_all_indiv) + 1
-        prev_score = score
+        prev_res = res
         
         # Check if this result is in the qualifying results
         is_qualified = res in indiv_results
         
-        if subj == 12:
+        if subj == 12: # score, place, name, school, district, bio, chem, phys
             result_dict = {
                 "rank": current_rank,
-                "score": score,
+                "score": int(res[0]),
                 "name": res[2],
                 "school": res[3],
                 "district": res[4],
@@ -309,14 +317,12 @@ def get_results():
         else:
             result_dict = {
                 "rank": current_rank,
-                "score": score,
+                "score": int(res[0]),
                 "name": res[2],
                 "school": res[3],
                 "district": res[4],
                 "qualified": is_qualified
             }
-            if comp == "CS" and len(res) > 5:
-                result_dict["prog_score"] = res[5]
         
         formatted_all_indiv.append(result_dict)
         if is_qualified:
@@ -338,30 +344,28 @@ def get_results():
     formatted_team = []
     formatted_all_team = []
     current_rank = 1
-    prev_score = None
+    prev_res = None
     
     # Format all team results (for CSV)
-    for res in all_team:
-        score = res[0]
+    for res in all_team: # team score, "prog score", 4th person score, ranking, school, district, people on team
         # If score is different from previous, update rank
-        if score != prev_score:
+        if prev_res is not None and res[0:3] != prev_res[0:3]:
             current_rank = len(formatted_all_team) + 1
-        prev_score = score
+        prev_res = res
         
         # Check if this team is in the qualifying results
         is_qualified = res in team_results
         
         result_dict = {
             "rank": current_rank,
-            "score": score,
-            "school": res[2],
-            "district": res[3],
-            "names": res[4],
-            "qualified": is_qualified
+            "score": int(res[0]),
+            "school": res[4],
+            "district": res[5],
+            "names": res[6],
+            "qualified": is_qualified,
+            "fourth": int(res[2]),
+            "prog_score": int(res[1])
         }
-        
-        if comp == "CS":
-            result_dict["prog_score"] = res[-1]
         
         formatted_all_team.append(result_dict)
         if is_qualified:
@@ -373,11 +377,11 @@ def get_results():
     current_rank = 1
     prev_score = None
     for result in formatted_team:
-        score = result['score']
-        if score != prev_score:
-            current_rank = len([r for r in formatted_team if r['score'] > score]) + 1
+        score, prog, fourth = result['score'], result['prog_score'], result['fourth']
+        if prev_res is not None and prev_score != (score, prog, fourth):
+            current_rank = len([r for r in formatted_team if (r['score'], r['prog_score'], r['fourth']) > (score, prog, fourth)]) + 1
         result['rank'] = current_rank
-        prev_score = score
+        prev_score = (score, prog, fourth)
     
     return jsonify({
         "individual": formatted_indiv,  # Only qualifying individuals (for display)
@@ -406,15 +410,13 @@ def download_csv():
         if competition == "Science":
             writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Biology', 'Chemistry', 'Physics', 'Qualified?'])
         elif competition == "CS":
-            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Programming Score', 'Qualified?'])
+            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Qualified?'])
         else:
             writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Qualified?'])
         
         # Write individual results
         for result in results['all_individual']:
             qualification_status = "Yes" if result['qualified'] else ""
-            if choice == '3':  # Regional Results
-                qualification_status = "Yes" if result['qualified'] else ""
             
             if competition == "Science":
                 writer.writerow([
@@ -435,7 +437,6 @@ def download_csv():
                     result['name'],
                     result['school'],
                     result['district'],
-                    result.get('prog_score', ''),
                     qualification_status
                 ])
             else:

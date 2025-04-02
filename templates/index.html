@@ -192,7 +192,7 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 200px">School</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 120px">District</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 400px">Team Members</th>
-                                    <th scope="col" id="progScoreHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 150px">Programming Score</th>
+                                    <th scope="col" id="progScoreHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 150px">Prog</th>
                                 </tr>
                             </thead>
                             <tbody id="teamResults" class="bg-white divide-y divide-gray-200">
@@ -323,7 +323,7 @@
             
             function createTeamRow(res) {
                 const row = document.createElement('tr');
-                const hasProgScore = res.prog_score !== null;
+                const hasProgScore = res.prog_score !== -999;
                 const colorClass = getRegionClass(res.district);
                 row.className = colorClass;
                 
@@ -370,6 +370,32 @@
                     currentConf = data.conf;
                     currentComp = formData.get('comp');
                     currentChoice = data.choice;
+
+                    // Handle empty districts warning
+                    const emptyDistrictsWarning = document.getElementById('emptyDistrictsWarning');
+                    const emptyDistrictsList = document.getElementById('emptyDistrictsList');
+                    if (result.empty_districts && result.empty_districts.length > 0) {
+                        emptyDistrictsList.textContent = result.empty_districts.join(', ');
+                        emptyDistrictsWarning.classList.remove('hidden');
+                    } else {
+                        emptyDistrictsWarning.classList.add('hidden');
+                    }
+                    
+                    // Show/hide science sorting controls
+                    const hasScience = currentComp === '12';
+                    scienceSorting.classList.toggle('hidden', !hasScience);
+                    // Show/hide science headers
+                    const bioHeader = document.getElementById('bioHeader');
+                    const chemHeader = document.getElementById('chemHeader');
+                    const physHeader = document.getElementById('physHeader');
+                    bioHeader.classList.toggle('hidden', !hasScience);
+                    chemHeader.classList.toggle('hidden', !hasScience);
+                    physHeader.classList.toggle('hidden', !hasScience);
+
+                    // Show/hide CS prog header
+                    const csHeader = document.getElementById('progScoreHeader');
+                    csHeader.classList.toggle('hidden', currentComp !== '9');
+
                     
                     // Update UI with results
                     document.getElementById('competitionTitle').textContent = `${competitions[data.comp]} Results`;
@@ -377,7 +403,7 @@
                     updateTeamResults(result.team);
                     
                     // Show/hide science sorting based on competition
-                    scienceSorting.classList.toggle('hidden', data.comp !== '12');
+                    scienceSorting.classList.toggle('hidden', !hasScience);
                     
                     // Show results and download buttons
                     results.classList.remove('hidden');
