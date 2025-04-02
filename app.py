@@ -6,6 +6,35 @@ import csv
 import io
 from datetime import datetime
 
+import subprocess
+import os
+from pathlib import Path
+
+def build_tailwind():
+    """
+    Builds the Tailwind CSS file using the tailwindcss CLI.
+    Returns True if successful, False otherwise.
+    """
+    try:
+        # Run the tailwind CLI command to build CSS
+        result = subprocess.run(
+            ["npx", "@tailwindcss/cli", "-i", "./static/input.css", "-o", "./static/output.css"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode != 0:
+            print(f"Tailwind build failed: {result.stderr}")
+            return False
+        
+        print("Tailwind CSS built successfully")
+        return True
+    except Exception as e:
+        print(f"Error building Tailwind CSS: {str(e)}")
+        return False
+
+build_tailwind()
+
 app = Flask(__name__)
 
 # Constants
