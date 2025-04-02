@@ -5,6 +5,8 @@ from time import sleep
 import csv
 import io
 from datetime import datetime
+import concurrent.futures
+import threading
 
 import subprocess
 import os
@@ -49,81 +51,136 @@ def req(dist="", reg="", state="", comp="", conf=""):
     inp = f"{url_template}groupingid={comp}&Submit=View+Postings&region={reg}&district={dist}&state={state}&conference={conf}&seasonid={year}"
     return requests.get(inp).content.decode()
 
+def process_single_district(district_num):
+    """
+    Process a single district and return its results.
+    This function is designed to be run in a thread pool.
+    """
+    try:
+        scrape = req(dist=str(district_num), comp=str(subj), conf=conf)
+        tmp = ("0" if district_num < 10 else "") + str(district_num)
+        regex = f"<tr>.*?{tmp}-{conf}A.*?</tr>"
+        indiv_places = re.findall(regex, scrape)
+        
+        indiv_results = []
+        team_results = []
+        mxbio, mxchem, mxphys = dict(), dict(), dict()
+        
+        if len(indiv_places) == 0:
+            indiv_places = re.findall("<tr>.*?HS.*?</tr>", scrape)
+        if len(indiv_places) == 0:
+            print(f"NOTHING IN DISTRICT {district_num}, continuing...")
+            return None, None, None, None, None, [district_num]
+            
+        for x in indiv_places:
+            values = re.findall("<td class='ddprint centered'>(.*?)</td>", x)
+            place = values[0]
+            school = values[1]
+            name = values[2].strip()
+            score = values[-3 if subj % 10 == 1 else -4]
+            try:
+                score = int(score)
+            except:
+                score = float(score)
+            tup = (score, place, name, school, f"District {district_num}")
+            
+            if subj == 12:
+                bio, chem, phys = int(values[4]), int(values[5]), int(values[6])
+                tup = (score, place, name, school, f"District {district_num}", bio, chem, phys)
+                if district_num in mxbio: mxbio[district_num] = max(mxbio[district_num], bio)
+                else: mxbio[district_num] = bio
+                if district_num in mxchem: mxchem[district_num] = max(mxchem[district_num], chem)
+                else: mxchem[district_num] = chem
+                if district_num in mxphys: mxphys[district_num] = max(mxphys[district_num], phys)
+                else: mxphys[district_num] = phys
+            indiv_results.append(tup)
+
+        regex = "<tr>(.*?)</tr>"
+        team_places = re.findall(regex, scrape)
+        for idx in range(len(indiv_places), len(team_places)):
+            x = team_places[idx]
+            if x.count("<br>") < 2:  # Team rows have multiple <br> tags for member names
+                continue
+                
+            try:
+                place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1)
+                school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1)
+                school = school[school.rindex('>')+1:]
+                regex = r"<td class='ddprint centered'>(\d+)<\/td>"
+                score, prog_score = 0, 0
+                
+                if comp == "CS":
+                    score = re.search(regex * 2, x).group(2)
+                    prog_score = re.search(regex, x).group(1)
+                else:
+                    score = re.search(regex, x).group(1)
+                names = [(N if '<' not in N else N[:N.index('<')]).strip() for N in x.split("<br>")[1:]]
+                if names:  # Only add if we found team members
+                    team_results.append((int(score), place, school, f"District {district_num}", names, prog_score))
+            except Exception as e:
+                print(f"Error processing team row in district {district_num}: {str(e)}")
+                continue
+            
+        print(f"Finished District {district_num}")
+        sleep(0.25)  # Keep the sleep to avoid overwhelming the server
+        
+        return indiv_results, team_results, mxbio, mxchem, mxphys, []
+        
+    except Exception as e:
+        print(f"Error processing district {district_num}: {str(e)}")
+        return None, None, None, None, None, [district_num]
+
 def district_parser(reg_number):
     indiv_results = []
     team_results = []
     mxbio, mxchem, mxphys = dict(), dict(), dict()
     empty_districts = []
     
-    for i in range(reg_number * 8 - 7, reg_number * 8 + 1):
-        try:
-            scrape = req(dist=str(i), comp=str(subj), conf=conf)
-            tmp = ("0" if i < 10 else "") + str(i)
-            regex = f"<tr>.*?{tmp}-{conf}A.*?</tr>"
-            indiv_places = re.findall(regex, scrape)
-            
-            if len(indiv_places) == 0:
-                indiv_places = re.findall("<tr>.*?HS.*?</tr>", scrape)
-            if len(indiv_places) == 0:
-                print(f"NOTHING IN DISTRICT {i}, continuing...")
-                empty_districts.append(i)
-                continue
+    # Create a thread pool to process districts concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        # Submit all district processing tasks
+        future_to_district = {
+            executor.submit(process_single_district, i): i 
+            for i in range(reg_number * 8 - 7, reg_number * 8 + 1)
+        }
+        
+        # Process results as they complete
+        for future in concurrent.futures.as_completed(future_to_district):
+            district_num = future_to_district[future]
+            try:
+                dist_indiv, dist_team, dist_mxbio, dist_mxchem, dist_mxphys, dist_empty = future.result()
                 
-            for x in indiv_places:
-                values = re.findall("<td class='ddprint centered'>(.*?)</td>", x)
-                place = values[0]
-                school = values[1]
-                name = values[2].strip()
-                score = values[-3 if subj % 10 == 1 else -4]
-                try:
-                    score = int(score)
-                except:
-                    score = float(score)
-                tup = (score, place, name, school, f"District {i}")
+                if dist_indiv is None:
+                    empty_districts.extend(dist_empty)
+                    continue
+                    
+                # Merge results
+                indiv_results.extend(dist_indiv)
+                team_results.extend(dist_team)
                 
+                # Merge max scores for Science
                 if subj == 12:
-                    bio, chem, phys = int(values[4]), int(values[5]), int(values[6])
-                    tup = (score, place, name, school, f"District {i}", bio, chem, phys)
-                    if i in mxbio: mxbio[i] = max(mxbio[i], bio)
-                    else: mxbio[i] = bio
-                    if i in mxchem: mxchem[i] = max(mxchem[i], chem)
-                    else: mxchem[i] = chem
-                    if i in mxphys: mxphys[i] = max(mxphys[i], phys)
-                    else: mxphys[i] = phys
-                indiv_results.append(tup)
-
-            regex = "<tr>(.*?)</tr>"
-            team_places = re.findall(regex, scrape)
-            for idx in range(len(indiv_places), len(team_places)):
-                x = team_places[idx]
-                if x.count("<br>") < 2:  # Team rows have multiple <br> tags for member names
-                    continue
-                    
-                try:
-                    place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1)
-                    school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1)
-                    school = school[school.rindex('>')+1:]
-                    regex = r"<td class='ddprint centered'>(\d+)<\/td>"
-                    score, prog_score = 0, 0
-                    
-                    if comp == "CS":
-                        score = re.search(regex * 2, x).group(2)
-                        prog_score = re.search(regex, x).group(1)
-                    else:
-                        score = re.search(regex, x).group(1)
-                    names = [(N if '<' not in N else N[:N.index('<')]).strip() for N in x.split("<br>")[1:]]
-                    if names:  # Only add if we found team members
-                        team_results.append((int(score), place, school, f"District {i}", names, prog_score))
-                except Exception as e:
-                    print(f"Error processing team row in district {i}: {str(e)}")
-                    continue
-                
-        except Exception as e:
-            print(f"Error processing district {i}: {str(e)}")
-            continue
-            
-        print(f"Finished District {i}")
-        sleep(0.25)
+                    for k, v in dist_mxbio.items():
+                        if k in mxbio:
+                            mxbio[k] = max(mxbio[k], v)
+                        else:
+                            mxbio[k] = v
+                            
+                    for k, v in dist_mxchem.items():
+                        if k in mxchem:
+                            mxchem[k] = max(mxchem[k], v)
+                        else:
+                            mxchem[k] = v
+                            
+                    for k, v in dist_mxphys.items():
+                        if k in mxphys:
+                            mxphys[k] = max(mxphys[k], v)
+                        else:
+                            mxphys[k] = v
+                            
+            except Exception as e:
+                print(f"Error processing results for district {district_num}: {str(e)}")
+                empty_districts.append(district_num)
 
     # Sort all results
     indiv_results.sort(reverse=True)
