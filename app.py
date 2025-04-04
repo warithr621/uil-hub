@@ -61,25 +61,31 @@ def district_parser(reg_number):
                     else: mxchem[i] = chem
                     if i in mxphys: mxphys[i] = max(mxphys[i], phys)
                     else: mxphys[i] = phys
+                print(tup)
                 indiv_results.append(tup)
 
             regex = "<tr>(.*?)</tr>"
             team_places = re.findall(regex, scrape)
             for idx in range(len(indiv_places), len(team_places)):
-                x = team_places[idx]
+                x = team_places[idx].replace('\u00a0', ' ')
+                print(x)
                 if x.count("<br>") < 2:  # Team rows have multiple <br> tags for member names
                     continue
                     
                 try:
                     place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1).strip()
+                    print(place)
                     school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1).strip()
                     school = school[school.rindex('>')+1:].strip()
-                    regex = r"<td class='ddprint centered'>(\d+)<\/td>"
+                    print(school)
+                    regex = r"<td class='ddprint centered'>(-?\d+)<\/td>"
                     score, prog_score = 0, 0
                     
                     if comp == "CS":
                         score = re.search(regex * 2, x).group(2)
+                        print(score)
                         prog_score = re.search(regex, x).group(1)
+                        print(prog_score)
                     else:
                         score = re.search(regex, x).group(1)
                     names = [(N if '<' not in N else N[:N.index('<')]).strip() for N in x.split("<br>")[1:]]
@@ -188,7 +194,7 @@ def regional_parser():
                     place = re.search(r"<td class='ddprint centered'>(.*?)<\/td>", x).group(1).strip()
                     school = re.search(r"<td class='ddprint centered'>(.*?)<span", x).group(1).strip()
                     school = school[school.rindex('>')+1:].strip()
-                    regex = r"<td class='ddprint centered'>(\d+)<\/td>"
+                    regex = r"<td class='ddprint centered'>(-?\d+)<\/td>"
                     score, prog_score = 0, 0
                     
                     if comp == "CS":
