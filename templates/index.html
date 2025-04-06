@@ -197,7 +197,7 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 200px">School</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 120px">District</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 400px">Team Members</th>
-                                    <th scope="col" id="progScoreHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 150px">Programming Score</th>
+                                    <th scope="col" id="progScoreHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 150px">Prog</th>
                                 </tr>
                             </thead>
                             <tbody id="teamResults" class="bg-white divide-y divide-gray-200">
@@ -386,7 +386,6 @@
                         emptyDistrictsWarning.classList.add('hidden');
                     }
 
-
                     // Show/hide science sorting controls
                     const hasScience = currentComp === '12';
                     scienceSorting.classList.toggle('hidden', !hasScience);
@@ -402,16 +401,12 @@
                     const csHeader = document.getElementById('progScoreHeader');
                     csHeader.classList.toggle('hidden', currentComp !== '9');
 
-
                     // Update UI with results
                     document.getElementById('competitionTitle').textContent = `${competitions[data.comp]} Results`;
                     updateIndividualResults(result.individual);
                     updateTeamResults(result.team);
                     
-                    // Show/hide science sorting based on competition
-                    scienceSorting.classList.toggle('hidden', !hasScience);
-
-                    // Show results and download buttons
+                  // Show results and download buttons
                     results.classList.remove('hidden');
                     downloadSection.classList.remove('hidden');
                 } catch (error) {
