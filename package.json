@@ -1,0 +1,20 @@
+{
+  "name": "uil-hub",
+  "version": "1.0.0",
+  "description": "A web-based application for viewing UIL academic competition results, scraping the results from Speechwire. This application allows you to view district and regional results for various UIL academic competitions.",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/warithr621/uil-hub.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/warithr621/uil-hub/issues"
+  },
+  "homepage": "https://github.com/warithr621/uil-hub#readme",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.1.1",
+    "tailwindcss": "^4.1.1"
+  }
+}

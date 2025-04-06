@@ -4,8 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UIL Results Viewer</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <!-- comment out if using local tailwind installation -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+    <!-- uncomment if using local tailwind installation -->
+    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='output.css') }}"> -->
     <style>
         /* Region-based colors */
         .region-1-row {
@@ -326,7 +331,7 @@
                 const hasProgScore = res.prog_score !== -999;
                 const colorClass = getRegionClass(res.district);
                 row.className = colorClass;
-                
+                console.log(res.prog_score)
                 row.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 80px">${res.rank}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 100px">${res.score}</td>
@@ -380,7 +385,7 @@
                     } else {
                         emptyDistrictsWarning.classList.add('hidden');
                     }
-                    
+
                     // Show/hide science sorting controls
                     const hasScience = currentComp === '12';
                     scienceSorting.classList.toggle('hidden', !hasScience);
@@ -396,16 +401,12 @@
                     const csHeader = document.getElementById('progScoreHeader');
                     csHeader.classList.toggle('hidden', currentComp !== '9');
 
-                    
                     // Update UI with results
                     document.getElementById('competitionTitle').textContent = `${competitions[data.comp]} Results`;
                     updateIndividualResults(result.individual);
                     updateTeamResults(result.team);
                     
-                    // Show/hide science sorting based on competition
-                    scienceSorting.classList.toggle('hidden', !hasScience);
-                    
-                    // Show results and download buttons
+                  // Show results and download buttons
                     results.classList.remove('hidden');
                     downloadSection.classList.remove('hidden');
                 } catch (error) {
