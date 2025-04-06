@@ -4,9 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UIL Results Viewer</title>
-    <!--> <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"> </-->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='output.css') }}">
+
+    <!-- comment out if using local tailwind installation -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+    <!-- uncomment if using local tailwind installation -->
+    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='output.css') }}"> -->
     <style>
         /* Region-based colors */
         .region-1-row {
