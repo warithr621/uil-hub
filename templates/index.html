@@ -328,10 +328,10 @@
             
             function createTeamRow(res) {
                 const row = document.createElement('tr');
-                const hasProgScore = res.prog_score !== null;
+                const hasProgScore = res.prog_score !== -999;
                 const colorClass = getRegionClass(res.district);
                 row.className = colorClass;
-                
+                console.log(res.prog_score)
                 row.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 80px">${res.rank}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 100px">${res.score}</td>
@@ -375,15 +375,42 @@
                     currentConf = data.conf;
                     currentComp = formData.get('comp');
                     currentChoice = data.choice;
-                    
+
+                    // Handle empty districts warning
+                    const emptyDistrictsWarning = document.getElementById('emptyDistrictsWarning');
+                    const emptyDistrictsList = document.getElementById('emptyDistrictsList');
+                    if (result.empty_districts && result.empty_districts.length > 0) {
+                        emptyDistrictsList.textContent = result.empty_districts.join(', ');
+                        emptyDistrictsWarning.classList.remove('hidden');
+                    } else {
+                        emptyDistrictsWarning.classList.add('hidden');
+                    }
+
+
+                    // Show/hide science sorting controls
+                    const hasScience = currentComp === '12';
+                    scienceSorting.classList.toggle('hidden', !hasScience);
+                    // Show/hide science headers
+                    const bioHeader = document.getElementById('bioHeader');
+                    const chemHeader = document.getElementById('chemHeader');
+                    const physHeader = document.getElementById('physHeader');
+                    bioHeader.classList.toggle('hidden', !hasScience);
+                    chemHeader.classList.toggle('hidden', !hasScience);
+                    physHeader.classList.toggle('hidden', !hasScience);
+
+                    // Show/hide CS prog header
+                    const csHeader = document.getElementById('progScoreHeader');
+                    csHeader.classList.toggle('hidden', currentComp !== '9');
+
+
                     // Update UI with results
                     document.getElementById('competitionTitle').textContent = `${competitions[data.comp]} Results`;
                     updateIndividualResults(result.individual);
                     updateTeamResults(result.team);
                     
                     // Show/hide science sorting based on competition
-                    scienceSorting.classList.toggle('hidden', data.comp !== '12');
-                    
+                    scienceSorting.classList.toggle('hidden', !hasScience);
+
                     // Show results and download buttons
                     results.classList.remove('hidden');
                     downloadSection.classList.remove('hidden');

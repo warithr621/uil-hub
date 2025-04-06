@@ -124,7 +124,9 @@ def process_single_district(district_num):
                 continue
             
         print(f"Finished District {district_num}")
-        sleep(0.25)  # Keep the sleep to avoid overwhelming the server
+
+        # does this matter?
+        # sleep(0.25)
         
         return indiv_results, team_results, mxbio, mxchem, mxphys, []
         
@@ -291,7 +293,9 @@ def regional_parser():
             continue
             
         print(f"Finished Region {i}")
-        sleep(0.25)
+
+        # does this matter?
+        # sleep(0.25)
 
     # Sort all results
     indiv_results.sort(reverse=True)
