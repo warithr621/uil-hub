@@ -241,11 +241,10 @@
             choiceSelect.addEventListener('change', updateRegionVisibility);
             updateRegionVisibility(); // Initial state
             
-            // Science sorting functionality
             document.querySelectorAll('.sort-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', function () {
                     if (!currentResults) return;
-                    
+
                     // Update button styles
                     document.querySelectorAll('.sort-btn').forEach(b => {
                         b.classList.remove('bg-blue-100', 'text-blue-700');
@@ -253,22 +252,40 @@
                     });
                     this.classList.remove('bg-gray-100', 'text-gray-700');
                     this.classList.add('bg-blue-100', 'text-blue-700');
-                    
-                    // Sort results
+
+                    // Sort and rank results
                     const sortBy = this.dataset.sort;
                     const sortedResults = [...currentResults.individual];
-                    
+
                     if (sortBy === 'overall') {
                         sortedResults.sort((a, b) => b.score - a.score);
+                        assignRanks(sortedResults, 'score');
                     } else {
                         sortedResults.sort((a, b) => b[sortBy] - a[sortBy]);
+                        assignRanks(sortedResults, sortBy);
                     }
-                    
+
                     // Update display
                     updateIndividualResults(sortedResults);
                 });
             });
-            
+
+            function assignRanks(arr, key) {
+                let currentRank = 1;
+                for (let i = 0; i < arr.length; i++) {
+                    if (i === 0) {
+                        arr[i].rank = currentRank;
+                    } else {
+                        if (arr[i][key] === arr[i - 1][key]) {
+                            arr[i].rank = currentRank;
+                        } else {
+                            currentRank = i + 1;
+                            arr[i].rank = currentRank;
+                        }
+                    }
+                }
+            }
+
             function getRegionClass(district) {
                 if (district.startsWith('Region')) {
                     const regionNum = district.split(' ')[1];
@@ -282,24 +299,23 @@
                 }
                 return '';
             }
-            
+
             function updateIndividualResults(results) {
                 const individualResults = document.getElementById('individualResults');
                 individualResults.innerHTML = '';
-                
-                // Show all results in scrollable area
+
                 results.forEach(res => {
                     const row = createIndividualRow(res);
                     individualResults.appendChild(row);
                 });
             }
-            
+
             function createIndividualRow(res) {
                 const row = document.createElement('tr');
                 const hasScience = 'bio' in res;
                 const colorClass = getRegionClass(res.district);
                 row.className = colorClass;
-                
+
                 row.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 80px">${res.rank}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 100px">${res.score}</td>

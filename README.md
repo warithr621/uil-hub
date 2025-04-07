@@ -57,23 +57,11 @@ If this doesn't work, check the terminal again, as it may ask you to open it in 
 3. Select the view type:
    - District Results (Single Region)
    - District Results (All Regions)
-   - Regional Results (coming soon)
-4. Choose the competition
+   - Regional Results
+4. Choose the contest
 5. If viewing single region results, select the region number
 6. Click "Get Results" to view the competition results
 
-## Project Structure
-
-```
-uil-hub/
-├── app.py              # Main Flask application
-├── requirements.txt    # Python dependencies
-├── static/
-│   └── style.css      # Custom CSS styles
-└── templates/
-    └── index.html     # Main HTML template
-```
-
 ## Contributing
 
-Feel free to submit issues and enhancement requests! 
+Questions? Feel free to submit issues and enhancement requests! 
