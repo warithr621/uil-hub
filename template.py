@@ -113,13 +113,13 @@ competitions = {1: "Accounting", 8: "Calculator", 2: "Comp Apps",
 	9: "CS", 3: "Current Events", 10: "Math", 11: "Number Sense",
 	12: "Science", 7: "Spelling", 4: "Lit Crit", 6: "Social Studies"}
 year = -1
-print("Choose a UIL Season: 2023, 2024, 2025")
+print("Choose a UIL Season: 2023 through 2026")
 season = input()
 while True: # avoid goofy accidental input
 	works = False
 	try:
 		season = int(season)
-		if 2023 <= season <= 2025:
+		if 2023 <= season <= 2026:
 			works = True
 			year = season - 2008
 	except:

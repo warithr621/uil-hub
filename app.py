@@ -336,21 +336,12 @@ def regional_parser():
 def index():
     return render_template('index.html', competitions=competitions)
 
-@app.route('/results', methods=['POST'])
-def get_results():
-    global year, conf, subj, comp
-    
-    data = request.json
-    year = int(data['year']) - 2008
-    conf = int(data['conf'])
-    subj = int(data['comp'])
-    comp = competitions[subj]
-    choice = int(data['choice'])
-    
+def _run_results_for_choice(choice, region_str):
+    """Returns indiv_results, team_results, all_indiv, all_team, empty_districts for current globals (conf, subj, comp, year)."""
     if choice == 1:
-        reg_number = int(data['region'])
-        indiv_results, team_results, all_indiv, all_team, empty_districts = district_parser(reg_number)
-    elif choice == 2:
+        reg_number = int(region_str)
+        return district_parser(reg_number)
+    if choice == 2:
         indiv_results, team_results = [], []
         all_indiv, all_team = [], []
         empty_districts = []
@@ -365,9 +356,45 @@ def get_results():
         team_results.sort(reverse=True)
         all_indiv.sort(reverse=True)
         all_team.sort(reverse=True)
-    else:  # choice == 3
-        indiv_results, team_results, all_indiv, all_team = regional_parser()
+        return indiv_results, team_results, all_indiv, all_team, empty_districts
+    indiv_results, team_results, all_indiv, all_team = regional_parser()
+    return indiv_results, team_results, all_indiv, all_team, []
+
+
+@app.route('/results', methods=['POST'])
+def get_results():
+    global year, conf, subj, comp
+    
+    data = request.json
+    year = int(data['year']) - 2008
+    conf_input = int(data['conf'])
+    subj = int(data['comp'])
+    comp = competitions[subj]
+    choice = int(data['choice'])
+    region_str = data.get('region', '1')
+    
+    classification_mode = conf_input == 0
+    
+    if classification_mode:
+        indiv_results, team_results = [], []
+        all_indiv, all_team = [], []
         empty_districts = []
+        for c in range(1, 7):
+            conf = c
+            I, T, AI, AT, E = _run_results_for_choice(choice, region_str)
+            label = f"{c}A"
+            indiv_results.extend(t + (label,) for t in I)
+            team_results.extend(t + (label,) for t in T)
+            all_indiv.extend(t + (label,) for t in AI)
+            all_team.extend(t + (label,) for t in AT)
+            empty_districts.extend(f"{label} district {d}" for d in E)
+        indiv_results.sort(reverse=True)
+        team_results.sort(reverse=True)
+        all_indiv.sort(reverse=True)
+        all_team.sort(reverse=True)
+    else:
+        conf = conf_input
+        indiv_results, team_results, all_indiv, all_team, empty_districts = _run_results_for_choice(choice, region_str)
     
     # Format results for JSON response
     formatted_indiv = []
@@ -377,6 +404,10 @@ def get_results():
     
     # First, format all individual results (for CSV)
     for res in all_indiv:
+        cls_label = None
+        if classification_mode:
+            cls_label = res[-1]
+            res = res[:-1]
         score = int(res[0])
         # If score is different from previous, update rank
         if score != prev_score:
@@ -384,7 +415,8 @@ def get_results():
         prev_score = score
         
         # Check if this result is in the qualifying results
-        is_qualified = res in indiv_results
+        qual_check = res + (cls_label,) if classification_mode else res
+        is_qualified = qual_check in indiv_results
         
         if subj == 12:
             result_dict = {
@@ -409,6 +441,8 @@ def get_results():
             }
             if comp == "CS" and len(res) > 5:
                 result_dict["prog_score"] = res[5]
+        if cls_label is not None:
+            result_dict["classification"] = cls_label
         
         formatted_all_indiv.append(result_dict)
         if is_qualified:
@@ -434,6 +468,10 @@ def get_results():
     
     # Format all team results (for CSV)
     for res in all_team:
+        cls_label = None
+        if classification_mode:
+            cls_label = res[-1]
+            res = res[:-1]
         score = res[0]
         # If score is different from previous, update rank
         if score != prev_score:
@@ -441,7 +479,8 @@ def get_results():
         prev_score = score
         
         # Check if this team is in the qualifying results
-        is_qualified = res in team_results
+        qual_check = res + (cls_label,) if classification_mode else res
+        is_qualified = qual_check in team_results
         
         result_dict = {
             "rank": current_rank,
@@ -453,6 +492,8 @@ def get_results():
             "fourth": int(res[2]),
             "prog_score": int(res[1])
         }
+        if cls_label is not None:
+            result_dict["classification"] = cls_label
         
         formatted_all_team.append(result_dict)
         if is_qualified:
@@ -475,7 +516,8 @@ def get_results():
         "team": formatted_team,         # Only qualifying teams (for display)
         "all_individual": formatted_all_indiv,  # All individuals (for CSV)
         "all_team": formatted_all_team,        # All teams (for CSV)
-        "empty_districts": empty_districts
+        "empty_districts": empty_districts,
+        "classification_mode": classification_mode,
     })
 
 @app.route('/download_csv', methods=['POST'])
@@ -487,6 +529,10 @@ def download_csv():
     conf = data['conf']
     choice = data['choice']
     type = data['type']
+    try:
+        classification_mode = int(conf) == 0
+    except (TypeError, ValueError):
+        classification_mode = bool(results.get('classification_mode'))
     
     # Create CSV in memory
     output = io.StringIO()
@@ -495,11 +541,23 @@ def download_csv():
     if type == 'individual':
         # Write headers for individual results
         if competition == "Science":
-            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Biology', 'Chemistry', 'Physics', 'Qualified?'])
+            row = ['Rank', 'Score', 'Name', 'School', 'District', 'Biology', 'Chemistry', 'Physics']
+            if classification_mode:
+                row.append('Classification')
+            row.append('Qualified?')
+            writer.writerow(row)
         elif competition == "CS":
-            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Programming Score', 'Qualified?'])
+            row = ['Rank', 'Score', 'Name', 'School', 'District', 'Programming Score']
+            if classification_mode:
+                row.append('Classification')
+            row.append('Qualified?')
+            writer.writerow(row)
         else:
-            writer.writerow(['Rank', 'Score', 'Name', 'School', 'District', 'Qualified?'])
+            row = ['Rank', 'Score', 'Name', 'School', 'District']
+            if classification_mode:
+                row.append('Classification')
+            row.append('Qualified?')
+            writer.writerow(row)
         
         # Write individual results
         for result in results['all_individual']:
@@ -508,7 +566,7 @@ def download_csv():
                 qualification_status = "Yes" if result['qualified'] else ""
             
             if competition == "Science":
-                writer.writerow([
+                row = [
                     result['rank'],
                     result['score'],
                     result['name'],
@@ -517,33 +575,50 @@ def download_csv():
                     result['bio'],
                     result['chem'],
                     result['phys'],
-                    qualification_status
-                ])
+                ]
+                if classification_mode:
+                    row.append(result.get('classification', ''))
+                row.append(qualification_status)
+                writer.writerow(row)
             elif competition == "CS":
-                writer.writerow([
+                row = [
                     result['rank'],
                     result['score'],
                     result['name'],
                     result['school'],
                     result['district'],
                     result.get('prog_score', ''),
-                    qualification_status
-                ])
+                ]
+                if classification_mode:
+                    row.append(result.get('classification', ''))
+                row.append(qualification_status)
+                writer.writerow(row)
             else:
-                writer.writerow([
+                row = [
                     result['rank'],
                     result['score'],
                     result['name'],
                     result['school'],
                     result['district'],
-                    qualification_status
-                ])
+                ]
+                if classification_mode:
+                    row.append(result.get('classification', ''))
+                row.append(qualification_status)
+                writer.writerow(row)
     else:  # team results
         # Write headers for team results
         if competition == "CS":
-            writer.writerow(['Rank', 'Score', 'School', 'District', 'Team Members', 'Programming Score', '4th Person Score', 'Qualified?'])
+            row = ['Rank', 'Score', 'School', 'District', 'Team Members', 'Programming Score', '4th Person Score']
+            if classification_mode:
+                row.append('Classification')
+            row.append('Qualified?')
+            writer.writerow(row)
         else:
-            writer.writerow(['Rank', 'Score', 'School', 'District', 'Team Members', '4th Person Score', 'Qualified?'])
+            row = ['Rank', 'Score', 'School', 'District', 'Team Members', '4th Person Score']
+            if classification_mode:
+                row.append('Classification')
+            row.append('Qualified?')
+            writer.writerow(row)
         
         # Write team results
         for result in results['all_team']:
@@ -552,7 +627,7 @@ def download_csv():
                 qualification_status = "Yes" if result['qualified'] else ""
             
             if competition == "CS":
-                writer.writerow([
+                row = [
                     result['rank'],
                     result['score'],
                     result['school'],
@@ -560,22 +635,29 @@ def download_csv():
                     ', '.join(result['names']),
                     result.get('prog_score', ''),
                     result.get('fourth', ''),
-                    qualification_status
-                ])
+                ]
+                if classification_mode:
+                    row.append(result.get('classification', ''))
+                row.append(qualification_status)
+                writer.writerow(row)
             else:
-                writer.writerow([
+                row = [
                     result['rank'],
                     result['score'],
                     result['school'],
                     result['district'],
                     ', '.join(result['names']),
                     result.get('fourth', ''),
-                    qualification_status
-                ])
+                ]
+                if classification_mode:
+                    row.append(result.get('classification', ''))
+                row.append(qualification_status)
+                writer.writerow(row)
     
     # Create the response
     output.seek(0)
-    filename = f"{competition}_{year}_{conf}A_{type}_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    conf_tag = "All1A-6A" if classification_mode else f"{conf}A"
+    filename = f"{competition}_{year}_{conf_tag}_{type}_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     return send_file(
         io.BytesIO(output.getvalue().encode('utf-8')),
         mimetype='text/csv',

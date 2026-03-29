@@ -39,6 +39,20 @@
         .region-4-row:hover {
             background-color: rgba(0, 0, 255, 0.2);
         }
+
+        /* Classification-based colors (All 1A–6A) — hues spread ~60° apart for clearer side-by-side contrast */
+        .class-1a-row { background-color: hsl(358, 88%, 94%); }
+        .class-2a-row { background-color: hsl(48, 92%, 88%); }
+        .class-3a-row { background-color: hsl(135, 46%, 88%); }
+        .class-4a-row { background-color: hsl(205, 82%, 90%); }
+        .class-5a-row { background-color: hsl(275, 58%, 92%); }
+        .class-6a-row { background-color: hsl(320, 62%, 93%); }
+        .class-1a-row:hover { background-color: hsl(358, 88%, 87%); }
+        .class-2a-row:hover { background-color: hsl(48, 20%, 23%); }
+        .class-3a-row:hover { background-color: hsl(135, 46%, 81%); }
+        .class-4a-row:hover { background-color: hsl(205, 82%, 83%); }
+        .class-5a-row:hover { background-color: hsl(275, 58%, 85%); }
+        .class-6a-row:hover { background-color: hsl(320, 62%, 86%); }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -52,9 +66,10 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Year</label>
                         <select name="year" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="2023">2023</option>
-                            <option value="2024">2024</option>
+                            <option value="2026">2026</option>
                             <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                            <option value="2023">2023</option>
                         </select>
                     </div>
                     
@@ -67,13 +82,14 @@
                             <option value="4">4A</option>
                             <option value="5">5A</option>
                             <option value="6">6A</option>
+                            <option value="0">All (1A-6A)</option>
                         </select>
                     </div>
                     
                     <div>
                         <label class="block text-sm font-medium text-gray-700">View Type</label>
                         <select name="choice" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="1">District Results (Single Region)</option>
+                            <option value="1" id="choiceOptionSingleRegion">District Results (Single Region)</option>
                             <option value="2">District Results (All Regions)</option>
                             <option value="3">Regional Results</option>
                         </select>
@@ -175,6 +191,7 @@
                                     <th scope="col" id="bioHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 100px">Bio</th>
                                     <th scope="col" id="chemHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 100px">Chem</th>
                                     <th scope="col" id="physHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 100px">Phys</th>
+                                    <th scope="col" id="classificationIndivHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 72px">Class</th>
                                 </tr>
                             </thead>
                             <tbody id="individualResults" class="bg-white divide-y divide-gray-200">
@@ -198,6 +215,7 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 120px">District</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="width: 400px">Team Members</th>
                                     <th scope="col" id="progScoreHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 150px">Prog</th>
+                                    <th scope="col" id="classificationTeamHeader" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden" style="width: 72px">Class</th>
                                 </tr>
                             </thead>
                             <tbody id="teamResults" class="bg-white divide-y divide-gray-200">
@@ -226,20 +244,42 @@
             const downloadIndividualCSV = document.getElementById('downloadIndividualCSV');
             const downloadTeamCSV = document.getElementById('downloadTeamCSV');
             const choiceSelect = form.querySelector('select[name="choice"]');
+            const confSelect = form.querySelector('select[name="conf"]');
             const scienceSorting = document.getElementById('scienceSorting');
+            const CLASSIFICATION_ROW_CLASSES = {
+                '1A': 'class-1a-row',
+                '2A': 'class-2a-row',
+                '3A': 'class-3a-row',
+                '4A': 'class-4a-row',
+                '5A': 'class-5a-row',
+                '6A': 'class-6a-row',
+            };
             let currentResults = null;
             let currentYear = null;
             let currentConf = null;
             let currentComp = null;
             let currentChoice = null;
+            let classificationMode = false;
             
             // Show/hide region input based on choice
             function updateRegionVisibility() {
                 regionInput.classList.toggle('hidden', choiceSelect.value !== '1');
             }
+
+            function updateChoiceOptionsForConf() {
+                const optSingle = document.getElementById('choiceOptionSingleRegion');
+                const isAll = confSelect.value === '0';
+                optSingle.hidden = isAll;
+                optSingle.disabled = isAll;
+                if (isAll && choiceSelect.value === '1') {
+                    choiceSelect.value = '2';
+                }
+                updateRegionVisibility();
+            }
             
             choiceSelect.addEventListener('change', updateRegionVisibility);
-            updateRegionVisibility(); // Initial state
+            confSelect.addEventListener('change', updateChoiceOptionsForConf);
+            updateChoiceOptionsForConf();
             
             document.querySelectorAll('.sort-btn').forEach(btn => {
                 btn.addEventListener('click', function () {
@@ -300,6 +340,13 @@
                 return '';
             }
 
+            function getRowColorClass(res) {
+                if (classificationMode && res.classification) {
+                    return CLASSIFICATION_ROW_CLASSES[res.classification] || '';
+                }
+                return getRegionClass(res.district);
+            }
+
             function updateIndividualResults(results) {
                 const individualResults = document.getElementById('individualResults');
                 individualResults.innerHTML = '';
@@ -313,8 +360,11 @@
             function createIndividualRow(res) {
                 const row = document.createElement('tr');
                 const hasScience = 'bio' in res;
-                const colorClass = getRegionClass(res.district);
+                const colorClass = getRowColorClass(res);
                 row.className = colorClass;
+                const classCell = classificationMode && res.classification
+                    ? `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 72px">${res.classification}</td>`
+                    : '';
 
                 row.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 80px">${res.rank}</td>
@@ -327,6 +377,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 100px">${res.chem}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 100px">${res.phys}</td>
                     ` : ''}
+                    ${classCell}
                 `;
                 return row;
             }
@@ -345,9 +396,12 @@
             function createTeamRow(res) {
                 const row = document.createElement('tr');
                 const hasProgScore = res.prog_score !== -999;
-                const colorClass = getRegionClass(res.district);
+                const colorClass = getRowColorClass(res);
                 row.className = colorClass;
-                console.log(res.prog_score)
+                const classCell = classificationMode && res.classification
+                    ? `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 72px">${res.classification}</td>`
+                    : '';
+
                 row.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 80px">${res.rank}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 100px">${res.score}</td>
@@ -357,6 +411,7 @@
                     ${hasProgScore ? `
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" style="width: 150px">${res.prog_score}</td>
                     ` : ''}
+                    ${classCell}
                 `;
                 return row;
             }
@@ -391,6 +446,7 @@
                     currentConf = data.conf;
                     currentComp = formData.get('comp');
                     currentChoice = data.choice;
+                    classificationMode = !!result.classification_mode;
 
                     // Handle empty districts warning
                     const emptyDistrictsWarning = document.getElementById('emptyDistrictsWarning');
@@ -416,6 +472,9 @@
                     // Show/hide CS prog header
                     const csHeader = document.getElementById('progScoreHeader');
                     csHeader.classList.toggle('hidden', currentComp !== '9');
+
+                    document.getElementById('classificationIndivHeader').classList.toggle('hidden', !classificationMode);
+                    document.getElementById('classificationTeamHeader').classList.toggle('hidden', !classificationMode);
 
                     // Update UI with results
                     document.getElementById('competitionTitle').textContent = `${competitions[data.comp]} Results`;
