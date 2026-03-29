@@ -1,0 +1,15 @@
+[Unit]
+Description=UIL Hub Flask (Gunicorn)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/uil-hub
+EnvironmentFile=-/opt/uil-hub/.env
+ExecStart=/opt/uil-hub/venv/bin/gunicorn --config /opt/uil-hub/gunicorn.conf.py app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -12,6 +12,12 @@ import subprocess
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 def build_tailwind():
     """
     Builds the Tailwind CSS file using the tailwindcss CLI.
@@ -39,6 +45,7 @@ def build_tailwind():
 # build_tailwind()
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-for-production")
 
 # Constants
 url_template = "https://postings.speechwire.com/r-uil-academics.php?"
@@ -665,5 +672,7 @@ def download_csv():
         download_name=filename
     )
 
-if __name__ == '__main__':
-    app.run(debug=True) 
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "5000"))
+    debug = os.environ.get("FLASK_DEBUG", "true").lower() in ("1", "true", "yes")
+    app.run(host="0.0.0.0", port=port, debug=debug)
