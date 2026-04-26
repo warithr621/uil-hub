@@ -379,4 +379,3 @@ else:
 	for i in range(len(team_results)):
 		res = team_results[i]
 		print(f"Rank {i+1:2d}: {res[0]:4d}{f' (PROG = {res[-1]})' if comp == 'CS' else ''} --> {res[2]} ({res[3]})")
-
