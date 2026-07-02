@@ -337,7 +337,7 @@ async function runForChoice({ choice, region, subj, compName, conf, yearOffset }
   return { ...x, emptyDistricts: [] };
 }
 
-async function buildResultsPayload({ year, confInput, subj, choice, region }) {
+async function buildResultsPayload({ year, confInput, subj, choice, region, selfOrigin, selfService }) {
   const compName = COMPETITIONS[subj];
   const yearOffset = year - 2008;
   const classificationMode = confInput === 0;
@@ -350,7 +350,18 @@ async function buildResultsPayload({ year, confInput, subj, choice, region }) {
 
   if (classificationMode) {
     for (let c = 1; c <= 6; c += 1) {
-      const x = await runForChoice({ choice, region, subj, compName, conf: c, yearOffset });
+      let x;
+      if (choice === 2) {
+        const internalUrl = new URL("/internal/district-all-regions", selfOrigin);
+        const res = await selfService.fetch(internalUrl.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ year, conf: c, comp: subj }),
+        });
+        x = await res.json();
+      } else {
+        x = await runForChoice({ choice, region, subj, compName, conf: c, yearOffset });
+      }
       const label = `${c}A`;
       indivResults.push(...x.indivResults.map((t) => [...t, label]));
       teamResults.push(...x.teamResults.map((t) => [...t, label]));
@@ -372,6 +383,8 @@ async function buildResultsPayload({ year, confInput, subj, choice, region }) {
   let currentRank = 1;
   let prevScore = null;
 
+  const qualifiedIndivKeys = new Set(indivResults.map((q) => JSON.stringify(q)));
+
   for (let res of allIndiv) {
     let clsLabel = null;
     if (classificationMode) {
@@ -382,7 +395,7 @@ async function buildResultsPayload({ year, confInput, subj, choice, region }) {
     if (score !== prevScore) currentRank = formattedAllIndiv.length + 1;
     prevScore = score;
 
-    const isQualified = indivResults.some((q) => JSON.stringify(q) === JSON.stringify(classificationMode ? [...res, clsLabel] : res));
+    const isQualified = qualifiedIndivKeys.has(JSON.stringify(classificationMode ? [...res, clsLabel] : res));
     const result = subj === 12
       ? { rank: currentRank, score, name: res[2], school: res[3], district: res[4], bio: res[5], chem: res[6], phys: res[7], qualified: isQualified }
       : { rank: currentRank, score, name: res[2], school: res[3], district: res[4], qualified: isQualified };
@@ -406,6 +419,8 @@ async function buildResultsPayload({ year, confInput, subj, choice, region }) {
   currentRank = 1;
   prevScore = null;
 
+  const qualifiedTeamKeys = new Set(teamResults.map((q) => JSON.stringify(q)));
+
   for (let res of allTeam) {
     let clsLabel = null;
     if (classificationMode) {
@@ -415,7 +430,7 @@ async function buildResultsPayload({ year, confInput, subj, choice, region }) {
     const score = res[0];
     if (score !== prevScore) currentRank = formattedAllTeam.length + 1;
     prevScore = score;
-    const isQualified = teamResults.some((q) => JSON.stringify(q) === JSON.stringify(classificationMode ? [...res, clsLabel] : res));
+    const isQualified = qualifiedTeamKeys.has(JSON.stringify(classificationMode ? [...res, clsLabel] : res));
     const result = {
       rank: currentRank,
       score,
@@ -467,6 +482,25 @@ export default {
     if (request.method === "GET" && url.pathname === "/health") {
       return jsonResponse({ ok: true }, 200, origin);
     }
+    if (request.method === "POST" && url.pathname === "/internal/district-all-regions") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return jsonResponse({ error: "Invalid JSON body" }, 400, origin);
+      }
+      const year = Number.parseInt(body.year, 10);
+      const conf = Number.parseInt(body.conf, 10);
+      const subj = Number.parseInt(body.comp, 10);
+      if (!COMPETITIONS[subj]) return jsonResponse({ error: "Invalid competition" }, 400, origin);
+      if (![2023, 2024, 2025, 2026].includes(year)) return jsonResponse({ error: "Invalid year" }, 400, origin);
+      if (![1, 2, 3, 4, 5, 6].includes(conf)) return jsonResponse({ error: "Invalid classification" }, 400, origin);
+
+      const compName = COMPETITIONS[subj];
+      const yearOffset = year - 2008;
+      const result = await runForChoice({ choice: 2, region: "1", subj, compName, conf, yearOffset });
+      return jsonResponse(result, 200, origin);
+    }
     if (request.method !== "POST" || url.pathname !== "/results") {
       return jsonResponse({ error: "Not found" }, 404, origin);
     }
@@ -505,7 +539,7 @@ export default {
     if (cached) return cached;
 
     try {
-      const payload = await buildResultsPayload({ year, confInput, subj, choice, region });
+      const payload = await buildResultsPayload({ year, confInput, subj, choice, region, selfOrigin: url.origin, selfService: env.SELF });
       const response = jsonResponse(payload, 200, origin, { "Cache-Control": "public, max-age=120" });
       await cache.put(cacheKey, response.clone());
       return response;

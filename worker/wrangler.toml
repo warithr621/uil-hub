@@ -3,6 +3,8 @@ main = "src/index.js"
 compatibility_date = "2026-04-25"
 
 [vars]
-# Set to your GitHub Pages origin in production.
-# Example: https://warithr621.github.io
-ALLOWED_ORIGIN = "*"
+ALLOWED_ORIGIN = "https://warithr621.github.io"
+
+[[services]]
+binding = "SELF"
+service = "uil-hub-api"
